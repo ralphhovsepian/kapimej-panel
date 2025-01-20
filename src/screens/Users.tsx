@@ -1,88 +1,114 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Container,
-  InputBase,
-  Button,
-  Modal,
-  Typography,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-} from '@mui/material';
-import { Search, Filter, UserPlus, X } from 'lucide-react';
-import { UsersTable } from "../components/UsersTable.tsx"
+"use client"
 
-const Users = () => {
-  const [addModalOpen, setAddModalOpen] = useState(false);
+import type React from "react"
+import { useState, useEffect } from "react"
+import { Box, Container, InputBase, Button, Modal, Typography, TextField } from "@mui/material"
+import { Search, UserPlus, X } from "lucide-react"
+import { UsersTable } from "../components/UsersTable.tsx"
+import { supabase } from "../lib/supabaseClient.ts"
+
+export default function Users() {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [addModalOpen, setAddModalOpen] = useState(false)
   const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    status: 'Active',
-    country: { code: '', name: '', flag: '' },
-  });
+    email: "",
+    full_name: "",
+    avatar_url: "",
+    wallet_balance: "0",
+  })
+  const [searchQuery, setSearchQuery] = useState("")
+
+  useEffect(() => {
+    fetchUsers()
+  }, [searchQuery])
+
+  async function fetchUsers() {
+    try {
+      setLoading(true)
+      let query = supabase.from("profiles").select("*")
+
+      if (searchQuery) {
+        query = query.or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setUsers(data)
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAddClick = () => {
-    setAddModalOpen(true);
-  };
+    setAddModalOpen(true)
+  }
 
   const handleAddModalClose = () => {
-    setAddModalOpen(false);
+    setAddModalOpen(false)
     setNewUser({
-      name: '',
-      email: '',
-      status: 'Active',
-      country: { code: '', name: '', flag: '' },
-    });
-  };
+      email: "",
+      full_name: "",
+      avatar_url: "",
+      wallet_balance: "0",
+    })
+  }
 
   const handleAddInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = event.target;
-    if (name.startsWith('country.')) {
-      const countryField = name.split('.')[1];
-      setNewUser(prev => ({
-        ...prev,
-        country: { ...prev.country, [countryField]: value }
-      }));
-    } else {
-      setNewUser(prev => ({ ...prev, [name]: value }));
+    const { name, value } = event.target
+    setNewUser((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleAddSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    try {
+      const { data, error } = await supabase.from("profiles").insert([newUser]).select()
+
+      if (error) throw error
+
+      if (data) {
+        setUsers((prevUsers) => [...prevUsers, ...data])
+        handleAddModalClose()
+      }
+    } catch (error) {
+      console.error("Error adding new user:", error)
     }
-  };
+  }
 
-  const handleStatusChange = (event: SelectChangeEvent<string>) => {
-    setNewUser(prev => ({ ...prev, status: event.target.value }));
-  };
-
-  const handleAddSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    // Here you would typically send the new user data to your backend
-    console.log('New user to be added:', newUser);
-    handleAddModalClose();
-  };
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value)
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          mb: 3,
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
               <Box
                 component="span"
                 sx={{
-                  display: 'inline-flex',
+                  display: "inline-flex",
                   p: 1,
                   mr: 1,
                   borderRadius: 1,
-                  bgcolor: 'primary.main',
-                  color: 'white',
+                  bgcolor: "primary.main",
+                  color: "white",
                 }}
               >
                 <UserPlus size={20} />
@@ -90,23 +116,25 @@ const Users = () => {
               Users
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: "flex", gap: 2 }}>
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'white',
+                display: "flex",
+                alignItems: "center",
+                backgroundColor: "white",
                 px: 2,
                 py: 1,
                 borderRadius: 2,
                 width: 300,
-                border: '1px solid #eee',
+                border: "1px solid #eee",
               }}
             >
               <Search size={20} color="#666" style={{ marginRight: 8 }} />
               <InputBase
                 placeholder="Search users..."
-                sx={{ width: '100%' }}
+                sx={{ width: "100%" }}
+                value={searchQuery}
+                onChange={handleSearchChange}
               />
             </Box>
             <Button
@@ -119,7 +147,7 @@ const Users = () => {
             </Button>
           </Box>
         </Box>
-        <UsersTable />
+        {loading ? <Typography>Loading users...</Typography> : <UsersTable users={users} />}
       </Container>
 
       <Modal
@@ -128,34 +156,28 @@ const Users = () => {
         aria-labelledby="add-user-modal"
         aria-describedby="modal-to-add-new-user"
       >
-        <Box sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 400,
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          borderRadius: 2,
-        }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 400,
+            bgcolor: "background.paper",
+            boxShadow: 24,
+            p: 4,
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
             <Typography variant="h6" component="h2">
               Add New User
             </Typography>
-            <Button onClick={handleAddModalClose} sx={{ minWidth: 'auto', p: 0.5 }}>
+            <Button onClick={handleAddModalClose} sx={{ minWidth: "auto", p: 0.5 }}>
               <X size={24} />
             </Button>
           </Box>
           <form onSubmit={handleAddSubmit}>
-            <TextField
-              fullWidth
-              margin="normal"
-              label="Name"
-              name="name"
-              value={newUser.name}
-              onChange={handleAddInputChange}
-            />
             <TextField
               fullWidth
               margin="normal"
@@ -164,45 +186,34 @@ const Users = () => {
               type="email"
               value={newUser.email}
               onChange={handleAddInputChange}
+              required
             />
-            <FormControl fullWidth margin="normal">
-              <InputLabel id="add-status-label">Status</InputLabel>
-              <Select
-                labelId="add-status-label"
-                name="status"
-                value={newUser.status}
-                onChange={handleStatusChange}
-                label="Status"
-              >
-                <MenuItem value="Active">Active</MenuItem>
-                <MenuItem value="Inactive">Inactive</MenuItem>
-              </Select>
-            </FormControl>
             <TextField
               fullWidth
               margin="normal"
-              label="Country Name"
-              name="country.name"
-              value={newUser.country.name}
+              label="Full Name"
+              name="full_name"
+              value={newUser.full_name}
               onChange={handleAddInputChange}
             />
             <TextField
               fullWidth
               margin="normal"
-              label="Country Code"
-              name="country.code"
-              value={newUser.country.code}
+              label="Avatar URL"
+              name="avatar_url"
+              value={newUser.avatar_url}
               onChange={handleAddInputChange}
             />
             <TextField
               fullWidth
               margin="normal"
-              label="Country Flag (Emoji)"
-              name="country.flag"
-              value={newUser.country.flag}
+              label="Wallet Balance"
+              name="wallet_balance"
+              type="number"
+              value={newUser.wallet_balance}
               onChange={handleAddInputChange}
             />
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
               <Button onClick={handleAddModalClose} sx={{ mr: 2 }}>
                 Cancel
               </Button>
@@ -214,7 +225,6 @@ const Users = () => {
         </Box>
       </Modal>
     </Box>
-  );
-};
+  )
+}
 
-export default Users;
